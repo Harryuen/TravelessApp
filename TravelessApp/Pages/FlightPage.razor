@@ -1,0 +1,276 @@
+﻿@page "/flightpage"
+
+<div class="text-center">
+    <h3>Flight Finder</h3>
+</div>
+
+<div class="row mb-3">
+    <div class="col">
+        <label class="form-label">From:</label>
+        <input @bind="searchFrom" class="form-control" placeholder="Search by From" />
+    </div>
+
+    <div class="col">
+        <label class="form-label">To:</label>
+        <input @bind="searchTo" class="form-control" placeholder="Search by To" />
+    </div>
+
+    <div class="col">
+        <label class="form-label">Day:</label>
+        <input @bind="searchDay" class="form-control" placeholder="Search by Day" />
+    </div>
+
+    <div class="col align-self-end">
+        <button class="btn btn-primary" @onclick="SearchFlights">Search</button>
+    </div>
+</div>
+
+<div class="text-center">
+    <h3>Flights</h3>
+</div>
+<div class="row">
+    <div class="col">
+        <select value="@selectedFlight" @onchange="UpdateSelectedFlight" class="form-select">
+            <option value="">@(searchResult == null ? "Loading..." : "Select a flight")</option>
+            @if (searchResult != null && searchResult.Any())
+            {
+                @foreach (var flight in searchResult)
+                {
+                    <option value="@flight.Code">@($"{flight.Code} , {flight.Airline} , {flight.From} to {flight.To}, {flight.WeekDay}, {flight.Time}, {flight.TotalSeat}, {flight.CostPerSeat:C}")</option>
+                }
+            }
+            else if (searchResult != null && !searchResult.Any())
+            {
+                <option value="">No matching flights</option>
+            }
+        </select>
+    </div>
+</div>
+
+<h3 class="text-center">Reserve</h3>
+
+<!-- Displaying input boxes with titles for Flight Code, Airline, Day, Time, and Cost -->
+<div class="row">
+    <div class="col">
+        <label for="flightCode">Flight Code:</label>
+        <input type="text" id="flightCode" class="form-control" @bind="selectedFlightDetails.Code" disabled />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label for="airline">Airline:</label>
+        <input type="text" id="airline" class="form-control" @bind="selectedFlightDetails.Airline" disabled />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label for="day">Day:</label>
+        <input type="text" id="day" class="form-control" @bind="selectedFlightDetails.WeekDay" disabled />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label for="time">Time:</label>
+        <input type="text" id="time" class="form-control" @bind="selectedFlightDetails.Time" disabled />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label for="cost">Cost:</label>
+        <input type="text" id="cost" class="form-control" @bind="selectedFlightDetails.CostPerSeat" disabled />
+    </div>
+</div>
+
+<!-- User input fields for Name and Citizenship -->
+<div class="row">
+    <div class="col">
+        <label for="name">Name:</label>
+        <input type="text" id="name" class="form-control" placeholder="Name" @bind="userName" />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <label for="citizenship">Citizenship:</label>
+        <input type="text" id="citizenship" class="form-control" placeholder="Citizenship" @bind="userCitizenship" />
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col">
+        <button class="btn btn-primary" @onclick="ReserveFlight">Reserve</button>
+    </div>
+</div>
+
+<div class="alert alert-danger" role="alert" style="display: @(string.IsNullOrEmpty(errorMessage) ? "none" : "block")">
+    @errorMessage
+</div>
+
+@if (!string.IsNullOrEmpty(reservationCode))
+{
+    <p>Reservation Code: @reservationCode</p>
+}
+
+
+@code {
+    private List<FlightForDisplay> flightInf { get; set; } // flight data
+    private List<FlightForDisplay> searchResult = new List<FlightForDisplay>(); // Stores the search results
+    private string searchFrom; // Stores the search term for 'From'
+    private string searchTo; // Stores the search term for 'To'
+    private string searchDay; // Stores the search term for 'Day'
+    private string userName = "";
+    private string userCitizenship = "";
+    private FlightForDisplay selectedFlightDetails = new FlightForDisplay(); // Stores the details of the selected flight
+    private string selectedFlight; // Stores the selected flight code
+    ReservationManager reservationManager;
+    private string reservationCode;
+    
+
+    private void UpdateSelectedFlight(ChangeEventArgs e)
+    {
+        selectedFlight = e.Value.ToString();
+        if (string.IsNullOrEmpty(selectedFlight))
+        {
+            selectedFlightDetails = null; // Setting selectedFlightDetails to null when no flight is selected
+        }
+        else
+        {
+            selectedFlightDetails = searchResult.FirstOrDefault(f => f.Code == selectedFlight);
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        reservationManager = new ReservationManager();
+        LoadFlights();
+        if (searchResult != null && searchResult.Any())
+        {
+            selectedFlightDetails = searchResult.First();
+        }
+    }
+
+    private void LoadFlights()
+    {
+        string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data", "flights.csv");
+
+        string[] lines = File.ReadAllLines(filePath);
+        flightInf = new List<FlightForDisplay>(); // Initialize flightInf with FlightForDisplay
+
+        foreach (var line in lines)
+        {
+            var parts = line.Split(',');
+
+            if (parts.Length == 8)
+            {
+                flightInf.Add(new FlightForDisplay // Adjust to use FlightForDisplay
+                    {
+                        Code = parts[0],
+                        Airline = parts[1],
+                        From = parts[2],
+                        To = parts[3],
+                        WeekDay = parts[4],
+                        Time = parts[5],
+                        TotalSeat = parts[6],
+                        CostPerSeat = decimal.Parse(parts[7]) // Rename TicketPrice to CostPerSeat
+                    });
+            }
+        }
+    }
+
+    private void SearchFlights()
+    {
+        if (flightInf != null)
+        {
+            searchResult = flightInf
+                .Where(f =>
+                    (string.IsNullOrEmpty(searchFrom) || f.From.IndexOf(searchFrom, StringComparison.OrdinalIgnoreCase) >= 0) &&
+                    (string.IsNullOrEmpty(searchTo) || f.To.IndexOf(searchTo, StringComparison.OrdinalIgnoreCase) >= 0) &&
+                    (string.IsNullOrEmpty(searchDay) || f.WeekDay.IndexOf(searchDay, StringComparison.OrdinalIgnoreCase) >= 0)
+                )
+                .ToList();
+        }
+        else
+        {
+            searchResult = new List<FlightForDisplay>(); // Clear search results if the search term is empty
+        }
+    }
+
+
+    public class FlightForDisplay
+    {
+        public string Code { get; set; }
+        public string Airline { get; set; }
+        public string From { get; set; }
+        public string To { get; set; }
+        public string WeekDay { get; set; }
+        public string Time { get; set; }
+        public string TotalSeat { get; set; }
+        public decimal CostPerSeat { get; set; }
+    }
+
+    private string errorMessage = ""; // Initialize the error message as empty
+    private List<Reservation> _reservations;
+
+    private void ReserveFlight()
+    {
+        try
+        {
+            errorMessage = "";
+
+            if (searchResult == null || searchResult.Count == 0)
+            {
+                throw MakeReservationException.NoFlightSelected();
+            }
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw MakeReservationException.EmptyNameField();
+            }
+            if (string.IsNullOrEmpty(userCitizenship))
+            {
+                throw MakeReservationException.EmptyCitizenshipField();
+            }
+
+            var selectedFlight = new Flight  // Creating a new Flight object based on the selectedFlightDetails
+                {
+                    FlightCode = selectedFlightDetails.Code,
+                    Airline = selectedFlightDetails.Airline,
+                    From = selectedFlightDetails.From,
+                    To = selectedFlightDetails.To,
+                    DayOfFlight = selectedFlightDetails.WeekDay,
+                    FlightTime = selectedFlightDetails.Time,
+                    TotalSeat = int.Parse(selectedFlightDetails.TotalSeat),
+                    CostPerSeat = selectedFlightDetails.CostPerSeat
+                };
+
+            // var reservation = new ReservationManager().MakeReservation(selectedFlight, userName, userCitizenship);
+            // reservationCode = Reservation.GenerateReservationCode();
+
+            var reservationManager = new ReservationManager();
+            var reservation = reservationManager.MakeReservation(selectedFlight, userName, userCitizenship);
+            reservationCode = reservation.Code;
+
+        }
+        catch (MakeReservationException ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+
+
+
+
+
+
+
+}
+
+
+
+
+
+

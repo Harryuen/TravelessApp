@@ -1,0 +1,126 @@
+﻿@page "/reservationpage"
+
+
+<h3>Reservation Details</h3>
+
+<div class="row mb-3">
+    <div class="col">
+        <label for="reservationCode">Reservation Code:</label>
+        <input type="text" id="reservationCode" class="form-control" @bind="searchReservationCode" placeholder="Enter Reservation Code" />
+    </div>
+
+    <div class="col align-self-end">
+        <button class="btn btn-primary" @onclick="SearchReservation">Search</button>
+    </div>
+</div>
+
+@if (reservationFound && reservation != null)
+{
+    <h4>Reservation Details</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Reservation Code</th>
+                <th>Name</th>
+                <th>Citizenship</th>
+                <th>Flight Code</th>
+                <!-- Other fields to display flight details -->
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>@reservation.Code</td>
+                <td>@reservation.Name</td>
+                <td>@reservation.Citizenship</td>
+                <td>@reservation.Flight.FlightCode</td>
+                <!-- Display other flight details here -->
+            </tr>
+        </tbody>
+    </table>
+    <button class="btn btn-danger" @onclick="CancelReservation">Cancel Reservation</button>
+}
+
+
+
+
+@code {
+
+    private string searchReservationCode;
+    private Reservation reservation;
+    private string name;
+    private string citizenship;
+    private bool reservationFound = false;
+
+    // Search reservation method
+    private void SearchReservation()
+    {
+        if (!string.IsNullOrEmpty(searchReservationCode))
+        {
+            reservationFound = false; // Reset the flag before attempting a search
+
+            var reservationManager = new ReservationManager();
+            reservationManager.LoadFromFile(); // Load reservations from the file
+
+            reservation = reservationManager.FindReservationByCode(searchReservationCode);
+
+            if (reservation != null)
+            {
+                reservationFound = true; // Set the flag to true when a reservation is found
+                name = reservation.Name;
+                citizenship = reservation.Citizenship;
+                // Additional fields
+
+                // Display a success message
+                App.Current.MainPage.DisplayAlert("Success", "Reservation Found.", "OK");
+            }
+            else
+            {
+                // Display a message if no reservation is found
+                App.Current.MainPage.DisplayAlert("Not Found", "Reservation not found.", "OK");
+            }
+        }
+    }
+
+
+
+
+    private void CancelReservation()
+    {
+        try
+        {
+            if (reservation != null)
+            {
+                var reservationManager = new ReservationManager();
+                reservationManager.LoadFromFile(); // Load the reservations
+
+                // Find the reservation based on the entered code
+                var reservationToRemove = reservationManager.FindReservationByCode(searchReservationCode);
+
+                if (reservationToRemove != null)
+                {
+                    reservationManager.Reservations.Remove(reservationToRemove); // Remove the reservation from the in-memory list
+
+                    App.Current.MainPage.DisplayAlert("Cancellation", "Reservation canceled successfully.", "OK");
+
+                    // Save the updated reservations list (in-memory) to the JSON file
+                    reservationManager.Save();
+                }
+                else
+                {
+                    App.Current.MainPage.DisplayAlert("Cancellation", "Reservation not found.", "OK");
+                }
+            }
+            else
+            {
+                App.Current.MainPage.DisplayAlert("Cancellation", "Reservation is empty.", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Current.MainPage.DisplayAlert("Cancellation", "Failed to cancel the reservation: " + ex.Message, "OK");
+        }
+    }
+
+}
+
+ 
